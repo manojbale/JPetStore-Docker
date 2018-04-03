@@ -1,0 +1,78 @@
+---
+
+- hosts: all
+  #gather_facts: no
+  #remote_user: administrator
+  #become: yes
+  #become_method: sudo
+  tasks:
+
+ 
+ 
+  - name: delete build workspace
+    file: path=buildworkspace state=absent
+    ignore_errors: yes
+
+  - name: create new build workspace
+    file: path=buildworkspace state=directory
+  
+  - name: copy all the template files into docker image build workspace
+    template: src={{ item }} dest=buildworkspace/ mode=0755
+    with_items: 
+         - tomcat-users.xml
+         - server.xml
+         - context.xml
+         - tomcat.service
+         - Dockerfile
+
+  - name: copy the jpetstore binary to build workspace
+    copy: src={{ application_binary }} dest=buildworkspace
+  
+
+  - name: install docker-py module
+    command: pip install docker-py
+ 
+  - name: Build the jpetstore docker image
+    docker_image:
+         path: /home/openshift/buildworkspace
+         dockerfile: Dockerfile
+         name: tomcat-jpetstore
+         tag: "{{ build_number }}"
+         push: no
+
+
+  - name: stop the existing jpetstore container
+    docker_container:
+            name: tomcat-jpetstore
+            state: absent
+
+
+  - name: Open the 8081 port of docker host
+    firewalld:
+     port: 8081/tcp
+     permanent: true
+     state: enabled
+     immediate: yes
+
+  - name: start the new jpetstore container from new image
+    docker_container:
+            image: tomcat-jpetstore:{{ build_number }}
+            name: tomcat-jpetstore
+            state: started
+            privileged: yes
+            volumes: 
+               - "/sys/fs/cgroup:/sys/fs/cgroup"
+            ports:
+               - "8081:8080"
+  - name: wait for 120 seconds and continue with play
+    wait_for: timeout=120
+
+  - name: start the tomcat application inside the container
+    command: docker exec tomcat-jpetstore systemctl start tomcat
+
+
+
+
+  
+
+   

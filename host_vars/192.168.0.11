@@ -1,0 +1,23 @@
+---
+
+tomcat_user: tomcat
+tomcat_group: tomcat
+
+java_home: /opt/java/
+tomcat_home: /opt/tomcat/
+
+java_version: 8u161
+java_build: 8u161-b12
+java_dl_hash: 2f38c3b165be4555a1fa6e98c45e0808
+
+tomcat_major: 8
+tomcat_version: 8.5.28
+tomcat_http_port: 8080
+tomcat_https_port: 8443
+tomcat_ajp_port: 8009
+tomcat_manager_user: manager
+tomcat_manager_password: manager
+
+
+application_binary: jpetstore.war
+build_number: 1.3
