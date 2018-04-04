@@ -30,8 +30,8 @@
     copy: src={{ application_binary }} dest=buildworkspace
   
 
-  - name: install docker-py module
-    command: pip install docker-py
+  #- name: install docker-py module
+  #  command: pip install docker-py
  
   - name: Build the jpetstore docker image
     docker_image:
