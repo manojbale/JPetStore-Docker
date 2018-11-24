@@ -1,0 +1,1 @@
+FROM manojbale/tomcat:latest
