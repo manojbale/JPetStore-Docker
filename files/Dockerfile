@@ -1,4 +1,4 @@
-#comment1
+#comment2
 FROM tomcat:8-jre8
 
 RUN rm -rf /usr/local/tomcat/webapps/*
