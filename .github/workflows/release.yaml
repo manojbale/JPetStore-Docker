@@ -1,9 +1,9 @@
 name: Publish Release + Retag + Update Workflows
 
 on:
-  pull_request:
-    branches: [ main ]
-    types: [ closed ]   # run when PRs close
+  push:
+    branches:
+        - master
 
 permissions:
   contents: write
@@ -15,7 +15,6 @@ concurrency:
 
 jobs:
   publish_and_repoint_tags:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
