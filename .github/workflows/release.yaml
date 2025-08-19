@@ -1,0 +1,104 @@
+name: Publish Release + Retag + Update Workflows
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ closed ]   # run when PRs close
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish_and_repoint_tags:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 1) Publish new version
+      - id: rd
+        uses: release-drafter/release-drafter@v6
+        with:
+          publish: true
+          commitish: main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Parse semver + derive MAJOR_TAG
+        id: semver
+        shell: bash
+        run: |
+          TAG="${{ steps.rd.outputs.tag_name }}"
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Non-semver tag: $TAG"; exit 1; }
+          echo "MAJOR_TAG=$(echo "$TAG" | grep -oE '^v[0-9]+')" >> $GITHUB_ENV
+          echo "Release tag: $TAG"
+
+      # 2) Update workflow YAMLs to pin to the major tag and commit to main
+      - name: Update YAML files to use major tag
+        id: update_yaml
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          MAJOR_TAG: ${{ env.MAJOR_TAG }}
+        run: |
+          set -euo pipefail
+          changed=0
+          while IFS= read -r -d '' file; do
+            if grep -Eq "uses:\s*${REPO}@[^\"'[:space:]]+" "$file"; then
+              tmp="$(mktemp)"
+              sed -E "s|(uses:\s*${REPO})@[^\"'[:space:]]+|\1@${MAJOR_TAG}|g" "$file" > "$tmp"
+              if ! cmp -s "$file" "$tmp"; then
+                mv "$tmp" "$file"
+                echo "Updated: $file"
+                changed=1
+              else
+                rm -f "$tmp"
+              fi
+            fi
+          done < <(find . -type f \( -name '*.yml' -o -name '*.yaml' \) -print0)
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Commit YAML updates
+        if: steps.update_yaml.outputs.changed == '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: pin workflows to ${MAJOR_TAG} [skip ci]"
+          git push origin HEAD:main
+
+      # 3) Move BOTH tags (vX.Y.Z and vX) to the latest commit on main
+      - name: Move release and major alias tags to HEAD of main
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          MAJOR_TAG:   ${{ env.MAJOR_TAG }}
+        run: |
+          set -euo pipefail
+          # Ensure we have latest main and tags
+          git fetch origin main --depth=1
+          git fetch --tags --force
+          NEW_SHA=$(git rev-parse origin/main)
+          echo "Repointing to ${NEW_SHA}"
+
+          # Move the specific release tag (e.g., v3.5.1) to commit 11
+          echo "Updating ${RELEASE_TAG} -> ${NEW_SHA}"
+          git tag -f "${RELEASE_TAG}" "${NEW_SHA}"
+          git push origin "${RELEASE_TAG}" --force
+
+          # Move the major alias tag (e.g., v3) to commit 11
+          echo "Updating ${MAJOR_TAG} -> ${NEW_SHA}"
+          git push origin ":refs/tags/${MAJOR_TAG}" || true
+          git tag -f "${MAJOR_TAG}" "${NEW_SHA}"
+          git push origin "${MAJOR_TAG}" --force
