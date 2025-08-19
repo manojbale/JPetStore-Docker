@@ -1,0 +1,46 @@
+#
+name: tf-auto-dev
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'env/dev/**'
+      - 'modules/**'
+      - '.github/workflows/tf-auto-dev.yaml'
+
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'env/dev/**'
+      - 'modules/**'
+      - '.github/workflows/tf-auto-dev.yaml'
+
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: ${{ github.event_name == 'pull_request' }}
+    uses: manojbale/jPetStore-Docker/.github/workflows/actions/delete2.yaml@v0
+    with:
+      ARM_CLIENT_ID: 00b111fb-9b35-4bc0-8874-601cd4089b16 #DAI-GB4_MERCEDESMEFINANCE-D_Terraform-Deploy-Dev_1451-1
+      ARM_SUBSCRIPTION_ID: 94188215-a4e4-48dd-94b1-2ff74b484696
+      ARM_TENANT_ID: 9652d7c2-1ccf-4940-8151-4a92bd474ed0
+      terraform_root_directory: env/dev/
+
+  apply:
+    if: ${{ github.event_name == 'push' }}
+    uses: cx-factory/reusable-workflows/.github/workflows/terraform-apply-job.yaml@v0
+    with:
+      ARM_CLIENT_ID: 00b111fb-9b35-4bc0-8874-601cd4089b16 #DAI-GB4_MERCEDESMEFINANCE-D_Terraform-Deploy-Dev_1451-1
+      ARM_SUBSCRIPTION_ID: 94188215-a4e4-48dd-94b1-2ff74b484696
+      ARM_TENANT_ID: 9652d7c2-1ccf-4940-8151-4a92bd474ed0
+      terraform_root_directory: env/dev/
+      environment: tf-dev
